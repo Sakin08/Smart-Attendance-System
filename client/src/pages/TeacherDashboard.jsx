@@ -483,7 +483,17 @@ function CreateSession() {
         e.preventDefault();
         setSaving(true);
         try {
-            const res = await api.post('/attendance-sessions', form);
+            // Convert datetime-local values to proper ISO strings
+            const startDate = new Date(form.startTime);
+            const endDate = new Date(form.endTime);
+
+            const sessionData = {
+                ...form,
+                startTime: startDate.toISOString(),
+                endTime: endDate.toISOString()
+            };
+
+            const res = await api.post('/attendance-sessions', sessionData);
             setCreatedSession(res.data.session);
 
             // Generate QR
