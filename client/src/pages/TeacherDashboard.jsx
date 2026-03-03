@@ -275,7 +275,9 @@ function SessionsList() {
                 >
                     <option value="">Choose a course</option>
                     {courses.map(c => (
-                        <option key={c._id} value={c._id}>{c.courseName} ({c.courseCode})</option>
+                        <option key={c._id} value={c._id}>
+                            {c.courseName} ({c.courseCode}) - {c.department} - {c.season}
+                        </option>
                     ))}
                 </select>
             </div>
@@ -526,10 +528,8 @@ function CreateCourse() {
 /* ─── Create Session ───────────────────────────── */
 function CreateSession() {
     const [courses, setCourses] = useState([]);
-    const [availableBatches, setAvailableBatches] = useState([]);
     const [form, setForm] = useState({
         courseId: '',
-        batch: '',
         startTime: '',
         endTime: '',
         lat: 0,  // Default location (disabled)
@@ -545,22 +545,6 @@ function CreateSession() {
         api.get('/courses').then(res => setCourses(res.data.courses)).catch(() => { });
     }, []);
 
-    // Fetch available batches when a course is selected
-    useEffect(() => {
-        if (form.courseId) {
-            api.get(`/courses/${form.courseId}/batches`)
-                .then(res => {
-                    setAvailableBatches(res.data.batches || []);
-                })
-                .catch(() => {
-                    setAvailableBatches([]);
-                });
-        } else {
-            setAvailableBatches([]);
-            setForm(f => ({ ...f, batch: '' }));
-        }
-    }, [form.courseId]);
-
     const handleSubmit = async (e) => {
         e.preventDefault();
         setSaving(true);
@@ -571,7 +555,7 @@ function CreateSession() {
 
             const sessionData = {
                 courseId: form.courseId,
-                batch: form.batch || '',
+                batch: '',  // No batch filter
                 startTime: startDate.toISOString(),
                 endTime: endDate.toISOString(),
                 lat: form.lat,
@@ -636,21 +620,6 @@ function CreateSession() {
                             </select>
                         </div>
 
-                        {form.courseId && availableBatches.length > 0 && (
-                            <div>
-                                <label className="block text-sm font-medium text-dark-300 mb-1">Batch (Optional)</label>
-                                <select value={form.batch} onChange={(e) => setForm({ ...form, batch: e.target.value })}>
-                                    <option value="">All Batches</option>
-                                    {availableBatches.map(batch => (
-                                        <option key={batch} value={batch}>{batch}</option>
-                                    ))}
-                                </select>
-                                <p className="text-xs text-dark-400 mt-1">
-                                    {form.batch ? `Only students from batch ${form.batch} can mark attendance` : 'All enrolled students can mark attendance'}
-                                </p>
-                            </div>
-                        )}
-
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-sm font-medium text-dark-300 mb-1">Start Time</label>
@@ -679,13 +648,6 @@ function CreateSession() {
                     </div>
 
                     <div className="text-sm text-dark-400 space-y-1">
-                        {form.batch && (
-                            <p className="font-semibold text-dark-200">
-                                <span className="text-xs px-2 py-0.5 rounded-full bg-primary-500/20 text-primary-300">
-                                    Batch {form.batch}
-                                </span>
-                            </p>
-                        )}
                         <p>Session: {new Date(createdSession.startTime).toLocaleString()} - {new Date(createdSession.endTime).toLocaleTimeString()}</p>
                         <p className="font-mono text-xs">Token: {createdSession.qrToken}</p>
                     </div>
