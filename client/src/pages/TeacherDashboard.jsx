@@ -57,6 +57,21 @@ function CoursesList() {
         } catch { }
     };
 
+    const handleDeleteCourse = async (courseId, courseName) => {
+        if (!window.confirm(`Are you sure you want to delete "${courseName}"? This will also delete all associated attendance sessions.`)) {
+            return;
+        }
+
+        try {
+            await api.delete(`/courses/${courseId}`);
+            setToast({ message: 'Course deleted successfully', type: 'success' });
+            fetchCourses();
+            setSelectedCourse(null);
+        } catch (err) {
+            setToast({ message: err.response?.data?.message || 'Failed to delete course', type: 'error' });
+        }
+    };
+
     if (loading) return <Loader />;
 
     return (
@@ -79,12 +94,20 @@ function CoursesList() {
                                 </p>
                                 <p className="text-xs text-dark-500 mt-1">{course.students?.length || 0} students enrolled</p>
                             </div>
-                            <button
-                                onClick={() => setSelectedCourse(selectedCourse === course._id ? null : course._id)}
-                                className="btn btn-outline text-xs"
-                            >
-                                {selectedCourse === course._id ? 'Close' : 'Manage Students'}
-                            </button>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setSelectedCourse(selectedCourse === course._id ? null : course._id)}
+                                    className="btn btn-outline text-xs"
+                                >
+                                    {selectedCourse === course._id ? 'Close' : 'Manage Students'}
+                                </button>
+                                <button
+                                    onClick={() => handleDeleteCourse(course._id, course.courseName)}
+                                    className="btn btn-outline text-xs text-red-400 hover:text-red-300 hover:border-red-400"
+                                >
+                                    Delete
+                                </button>
+                            </div>
                         </div>
 
                         {selectedCourse === course._id && (
@@ -144,6 +167,7 @@ function SessionsList() {
     const [sheet, setSheet] = useState(null);
     const [qrDataUrl, setQrDataUrl] = useState('');
     const [loading, setLoading] = useState(true);
+    const [toast, setToast] = useState(null);
 
     useEffect(() => {
         api.get('/courses').then(res => {
@@ -152,13 +176,17 @@ function SessionsList() {
         }).catch(() => setLoading(false));
     }, []);
 
-    useEffect(() => {
+    const fetchSessions = useCallback(() => {
         if (selectedCourse) {
             api.get(`/attendance-sessions/teacher?courseId=${selectedCourse}`)
                 .then(res => setSessions(res.data.sessions))
                 .catch(() => { });
         }
     }, [selectedCourse]);
+
+    useEffect(() => {
+        fetchSessions();
+    }, [fetchSessions]);
 
     const viewSession = async (id) => {
         try {
@@ -174,6 +202,22 @@ function SessionsList() {
             const url = await QRCode.toDataURL(qrData, { width: 300, margin: 2, color: { dark: '#1e1b4b', light: '#ffffff' } });
             setQrDataUrl(url);
         } catch { }
+    };
+
+    const handleDeleteSession = async (sessionId) => {
+        if (!window.confirm('Are you sure you want to delete this session? This action cannot be undone.')) {
+            return;
+        }
+
+        try {
+            await api.delete(`/attendance-sessions/${sessionId}`);
+            setToast({ message: 'Session deleted successfully', type: 'success' });
+            fetchSessions();
+            setSelectedSession(null);
+            setSheet(null);
+        } catch (err) {
+            setToast({ message: err.response?.data?.message || 'Failed to delete session', type: 'error' });
+        }
     };
 
     const handleExport = async (sessionId, format) => {
@@ -220,6 +264,7 @@ function SessionsList() {
 
     return (
         <div className="space-y-6 animate-fade-in">
+            {toast && <Toast {...toast} onClose={() => setToast(null)} />}
             <h3 className="text-lg font-semibold text-dark-100">Attendance Sessions</h3>
 
             <div>
@@ -254,6 +299,11 @@ function SessionsList() {
                                     <div>
                                         <p className="font-medium text-dark-200">
                                             {new Date(session.startTime).toLocaleDateString()} · {new Date(session.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {new Date(session.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            {session.batch && (
+                                                <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-primary-500/20 text-primary-300">
+                                                    Batch {session.batch}
+                                                </span>
+                                            )}
                                         </p>
                                         <p className="text-xs text-dark-400 mt-1">
                                             {session.attendances?.length || 0} students attended
@@ -276,11 +326,21 @@ function SessionsList() {
                             <h4 className="font-semibold text-dark-100">Session Details</h4>
                             <p className="text-sm text-dark-400">
                                 {new Date(selectedSession.startTime).toLocaleString()} - {new Date(selectedSession.endTime).toLocaleTimeString()}
+                                {selectedSession.batch && (
+                                    <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-primary-500/20 text-primary-300">
+                                        Batch {selectedSession.batch}
+                                    </span>
+                                )}
                             </p>
                         </div>
-                        <button onClick={() => { setSelectedSession(null); setSheet(null); }} className="btn btn-outline text-xs">
-                            ← Back
-                        </button>
+                        <div className="flex gap-2">
+                            <button onClick={() => handleDeleteSession(selectedSession._id)} className="btn btn-outline text-xs text-red-400 hover:text-red-300 hover:border-red-400">
+                                Delete
+                            </button>
+                            <button onClick={() => { setSelectedSession(null); setSheet(null); }} className="btn btn-outline text-xs">
+                                ← Back
+                            </button>
+                        </div>
                     </div>
 
                     {/* QR Code */}
@@ -466,8 +526,10 @@ function CreateCourse() {
 /* ─── Create Session ───────────────────────────── */
 function CreateSession() {
     const [courses, setCourses] = useState([]);
+    const [availableBatches, setAvailableBatches] = useState([]);
     const [form, setForm] = useState({
         courseId: '',
+        batch: '',
         startTime: '',
         endTime: '',
         lat: 0,  // Default location (disabled)
@@ -483,6 +545,22 @@ function CreateSession() {
         api.get('/courses').then(res => setCourses(res.data.courses)).catch(() => { });
     }, []);
 
+    // Fetch available batches when a course is selected
+    useEffect(() => {
+        if (form.courseId) {
+            api.get(`/courses/${form.courseId}/batches`)
+                .then(res => {
+                    setAvailableBatches(res.data.batches || []);
+                })
+                .catch(() => {
+                    setAvailableBatches([]);
+                });
+        } else {
+            setAvailableBatches([]);
+            setForm(f => ({ ...f, batch: '' }));
+        }
+    }, [form.courseId]);
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setSaving(true);
@@ -492,9 +570,13 @@ function CreateSession() {
             const endDate = new Date(form.endTime);
 
             const sessionData = {
-                ...form,
+                courseId: form.courseId,
+                batch: form.batch || '',
                 startTime: startDate.toISOString(),
-                endTime: endDate.toISOString()
+                endTime: endDate.toISOString(),
+                lat: form.lat,
+                lng: form.lng,
+                radiusMeters: form.radiusMeters
             };
 
             const res = await api.post('/attendance-sessions', sessionData);
@@ -540,11 +622,34 @@ function CreateSession() {
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div>
                             <label className="block text-sm font-medium text-dark-300 mb-1">Course</label>
-                            <select value={form.courseId} onChange={(e) => setForm({ ...form, courseId: e.target.value })} required>
+                            <select
+                                value={form.courseId}
+                                onChange={(e) => setForm({ ...form, courseId: e.target.value, batch: '' })}
+                                required
+                            >
                                 <option value="">Select course</option>
-                                {courses.map(c => <option key={c._id} value={c._id}>{c.courseName} ({c.courseCode})</option>)}
+                                {courses.map(c => (
+                                    <option key={c._id} value={c._id}>
+                                        {c.courseName} ({c.courseCode}) - {c.department} - {c.season}
+                                    </option>
+                                ))}
                             </select>
                         </div>
+
+                        {form.courseId && availableBatches.length > 0 && (
+                            <div>
+                                <label className="block text-sm font-medium text-dark-300 mb-1">Batch (Optional)</label>
+                                <select value={form.batch} onChange={(e) => setForm({ ...form, batch: e.target.value })}>
+                                    <option value="">All Batches</option>
+                                    {availableBatches.map(batch => (
+                                        <option key={batch} value={batch}>{batch}</option>
+                                    ))}
+                                </select>
+                                <p className="text-xs text-dark-400 mt-1">
+                                    {form.batch ? `Only students from batch ${form.batch} can mark attendance` : 'All enrolled students can mark attendance'}
+                                </p>
+                            </div>
+                        )}
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
@@ -574,11 +679,21 @@ function CreateSession() {
                     </div>
 
                     <div className="text-sm text-dark-400 space-y-1">
+                        {form.batch && (
+                            <p className="font-semibold text-dark-200">
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-primary-500/20 text-primary-300">
+                                    Batch {form.batch}
+                                </span>
+                            </p>
+                        )}
                         <p>Session: {new Date(createdSession.startTime).toLocaleString()} - {new Date(createdSession.endTime).toLocaleTimeString()}</p>
                         <p className="font-mono text-xs">Token: {createdSession.qrToken}</p>
                     </div>
 
-                    <button onClick={() => { setCreatedSession(null); setQrDataUrl(''); }} className="btn btn-outline">
+                    <button onClick={() => {
+                        setCreatedSession(null);
+                        setQrDataUrl('');
+                    }} className="btn btn-outline">
                         Create Another Session
                     </button>
                 </div>

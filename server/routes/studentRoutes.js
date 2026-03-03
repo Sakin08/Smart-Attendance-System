@@ -126,6 +126,21 @@ router.post(
           .json({ message: "You are not enrolled in this course" });
       }
 
+      // 2.5. Validate batch if session has batch filter
+      if (session.batch) {
+        const student = await User.findOne({
+          email: studentEmail,
+          role: "student",
+        });
+        if (!student || student.batch !== session.batch) {
+          return res
+            .status(403)
+            .json({
+              message: `This session is only for batch ${session.batch}`,
+            });
+        }
+      }
+
       // 3. Validate time window - strict (no buffer)
       const now = new Date();
       const sessionStart = new Date(session.startTime);

@@ -101,6 +101,23 @@ router.delete(
   },
 );
 
+// DELETE /api/admin/sessions/:id — delete attendance session
+router.delete(
+  "/sessions/:id",
+  verifyToken,
+  authorize("admin"),
+  async (req, res) => {
+    try {
+      const session = await AttendanceSession.findByIdAndDelete(req.params.id);
+      if (!session)
+        return res.status(404).json({ message: "Session not found" });
+      res.json({ message: "Session deleted" });
+    } catch (error) {
+      res.status(500).json({ message: "Server error" });
+    }
+  },
+);
+
 // ─── Reports ─────────────────────────────────────────
 
 // GET /api/admin/reports — aggregate attendance report with filters
