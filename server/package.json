@@ -1,0 +1,22 @@
+{
+    "name": "smart-attendance-server",
+    "version": "1.0.0",
+    "description": "University Smart Attendance System - Backend",
+    "main": "index.js",
+    "scripts": {
+        "start": "node index.js",
+        "dev": "node --watch index.js",
+        "seed": "node seed.js"
+    },
+    "dependencies": {
+        "bcryptjs": "^2.4.3",
+        "cors": "^2.8.5",
+        "dotenv": "^16.4.5",
+        "exceljs": "^4.4.0",
+        "express": "^4.21.0",
+        "json2csv": "^6.0.0-alpha.2",
+        "jsonwebtoken": "^9.0.2",
+        "mongoose": "^8.5.0",
+        "uuid": "^10.0.0"
+    }
+}
