@@ -877,7 +877,7 @@ export default function TeacherDashboard() {
     return (
         <div className="min-h-screen bg-dark-900">
             <Navbar tabs={tabs} />
-            <main className="max-w-6xl mx-auto px-4 py-6">
+            <main className="max-w-6xl mx-auto px-4 py-8">
                 <Routes>
                     <Route index element={<CoursesList />} />
                     <Route path="sessions" element={<SessionsList />} />

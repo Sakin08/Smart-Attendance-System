@@ -382,7 +382,7 @@ export default function StudentDashboard() {
     return (
         <div className="min-h-screen bg-dark-900">
             <Navbar tabs={tabs} />
-            <main className="max-w-5xl mx-auto px-4 py-6">
+            <main className="max-w-5xl mx-auto px-4 py-8">
                 <Routes>
                     <Route index element={<DashboardHome />} />
                     <Route path="scan" element={<ScanQR />} />

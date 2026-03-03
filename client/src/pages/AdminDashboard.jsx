@@ -536,7 +536,7 @@ function ComprehensiveAttendanceReport() {
                                                 <div className="mt-2 w-full h-2 bg-dark-800 rounded-full">
                                                     <div
                                                         className={`h-full rounded-full transition-all ${course.percentage >= 75 ? 'bg-accent-500' :
-                                                                course.percentage >= 50 ? 'bg-amber-500' : 'bg-red-500'
+                                                            course.percentage >= 50 ? 'bg-amber-500' : 'bg-red-500'
                                                             }`}
                                                         style={{ width: `${course.percentage}%` }}
                                                     ></div>
@@ -568,7 +568,7 @@ export default function AdminDashboard() {
     return (
         <div className="min-h-screen bg-dark-900">
             <Navbar tabs={tabs} />
-            <main className="max-w-7xl mx-auto px-4 py-6">
+            <main className="max-w-7xl mx-auto px-4 py-8">
                 <Routes>
                     <Route index element={<Overview />} />
                     <Route path="users" element={<UsersPage />} />
