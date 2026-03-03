@@ -3,13 +3,13 @@ import { Routes, Route } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../api';
 import Navbar from '../components/Navbar';
-import MapPicker from '../components/MapPicker';
 import Toast from '../components/Toast';
 import QRCode from 'qrcode';
 
 const tabs = [
     { label: 'Courses', path: '/teacher' },
     { label: 'Sessions', path: '/teacher/sessions' },
+    { label: 'Attendance Report', path: '/teacher/attendance-report' },
     { label: 'Create Course', path: '/teacher/create-course' },
     { label: 'Create Session', path: '/teacher/create-session' },
 ];
@@ -176,9 +176,40 @@ function SessionsList() {
         } catch { }
     };
 
-    const handleExport = (sessionId, format) => {
-        const token = localStorage.getItem('token');
-        window.open(`/api/attendance-sessions/${sessionId}/export?format=${format}&token=${token}`, '_blank');
+    const handleExport = async (sessionId, format) => {
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/attendance-sessions/${sessionId}/export?format=${format}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('Export failed');
+            }
+
+            // Get filename from Content-Disposition header or use default
+            const contentDisposition = response.headers.get('Content-Disposition');
+            const filename = contentDisposition
+                ? contentDisposition.split('filename=')[1].replace(/"/g, '')
+                : `attendance_${sessionId}.${format === 'excel' ? 'xlsx' : 'csv'}`;
+
+            // Create blob and download
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        } catch (error) {
+            console.error('Export error:', error);
+            alert('Failed to export attendance. Please try again.');
+        }
     };
 
     if (loading) return <Loader />;
@@ -255,9 +286,10 @@ function SessionsList() {
                         </div>
                         <div className="flex-1 space-y-2 text-sm">
                             <InfoRow label="QR Token" value={selectedSession.qrToken} mono />
-                            <InfoRow label="Location" value={`${selectedSession.location.lat}, ${selectedSession.location.lng}`} />
-                            <InfoRow label="Radius" value={`${selectedSession.radiusMeters}m`} />
                             <InfoRow label="Attended" value={`${sheet.filter(s => s.status === 'Present').length} / ${sheet.length}`} />
+                            <div className="text-xs text-dark-500 mt-2">
+                                📍 Location verification is disabled
+                            </div>
                         </div>
                     </div>
 
@@ -280,7 +312,6 @@ function SessionsList() {
                                     <th>Email</th>
                                     <th>Status</th>
                                     <th>Marked At</th>
-                                    <th>Location</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -294,9 +325,6 @@ function SessionsList() {
                                             </span>
                                         </td>
                                         <td className="text-xs text-dark-400">{row.markedAt ? new Date(row.markedAt).toLocaleString() : '-'}</td>
-                                        <td className="text-xs text-dark-400">
-                                            {row.lat && row.lng ? `${row.lat.toFixed(4)}, ${row.lng.toFixed(4)}` : '-'}
-                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -438,8 +466,8 @@ function CreateSession() {
         courseId: '',
         startTime: '',
         endTime: '',
-        lat: 24.9128,
-        lng: 91.8315,
+        lat: 0,  // Default location (disabled)
+        lng: 0,  // Default location (disabled)
         radiusMeters: 100
     });
     const [saving, setSaving] = useState(false);
@@ -450,10 +478,6 @@ function CreateSession() {
     useEffect(() => {
         api.get('/courses').then(res => setCourses(res.data.courses)).catch(() => { });
     }, []);
-
-    const handleLocationChange = ({ lat, lng }) => {
-        setForm(f => ({ ...f, lat, lng }));
-    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -496,6 +520,9 @@ function CreateSession() {
             {!createdSession ? (
                 <div className="glass-card p-6">
                     <h3 className="text-lg font-semibold text-dark-100 mb-4">Create Attendance Session</h3>
+                    <p className="text-sm text-dark-400 mb-4">
+                        📍 Location verification is disabled. Students can mark attendance from anywhere using the QR code.
+                    </p>
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div>
                             <label className="block text-sm font-medium text-dark-300 mb-1">Course</label>
@@ -514,27 +541,6 @@ function CreateSession() {
                                 <label className="block text-sm font-medium text-dark-300 mb-1">End Time</label>
                                 <input type="datetime-local" value={form.endTime} onChange={(e) => setForm({ ...form, endTime: e.target.value })} required />
                             </div>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-dark-300 mb-1">Radius (meters)</label>
-                            <input
-                                type="number"
-                                value={form.radiusMeters}
-                                onChange={(e) => setForm({ ...form, radiusMeters: parseInt(e.target.value) || 100 })}
-                                min="10"
-                                max="5000"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-dark-300 mb-2">Session Location (click on map)</label>
-                            <MapPicker
-                                lat={form.lat}
-                                lng={form.lng}
-                                radius={form.radiusMeters}
-                                onLocationChange={handleLocationChange}
-                            />
                         </div>
 
                         <button type="submit" disabled={saving} className="btn btn-primary">
@@ -561,6 +567,190 @@ function CreateSession() {
                     <button onClick={() => { setCreatedSession(null); setQrDataUrl(''); }} className="btn btn-outline">
                         Create Another Session
                     </button>
+                </div>
+            )}
+        </div>
+    );
+}
+
+/* ─── Comprehensive Attendance Report ─────────────────────────────────── */
+function CourseAttendanceReport() {
+    const [courses, setCourses] = useState([]);
+    const [selectedCourse, setSelectedCourse] = useState('');
+    const [report, setReport] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [exporting, setExporting] = useState(false);
+
+    useEffect(() => {
+        api.get('/courses')
+            .then(res => {
+                setCourses(res.data.courses);
+                setLoading(false);
+            })
+            .catch(() => setLoading(false));
+    }, []);
+
+    useEffect(() => {
+        if (selectedCourse) {
+            setLoading(true);
+            api.get(`/courses/${selectedCourse}/attendance-report`)
+                .then(res => {
+                    setReport(res.data);
+                    setLoading(false);
+                })
+                .catch(() => setLoading(false));
+        } else {
+            setReport(null);
+        }
+    }, [selectedCourse]);
+
+    const handleExport = async (format) => {
+        if (!selectedCourse) return;
+        setExporting(true);
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/courses/${selectedCourse}/attendance-report/export?format=${format}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (!response.ok) throw new Error('Export failed');
+
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `course_attendance_report.${format === 'excel' ? 'xlsx' : 'csv'}`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        } catch (error) {
+            console.error('Export error:', error);
+            alert('Failed to export report');
+        } finally {
+            setExporting(false);
+        }
+    };
+
+    if (loading && courses.length === 0) return <Loader />;
+
+    return (
+        <div className="space-y-6 animate-fade-in">
+            <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-dark-100">Course Attendance Report</h3>
+                {selectedCourse && (
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => handleExport('csv')}
+                            disabled={exporting}
+                            className="btn btn-outline text-xs"
+                        >
+                            {exporting ? 'Exporting...' : 'Export CSV'}
+                        </button>
+                        <button
+                            onClick={() => handleExport('excel')}
+                            disabled={exporting}
+                            className="btn btn-primary text-xs"
+                        >
+                            {exporting ? 'Exporting...' : 'Export Excel'}
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            {/* Course Selection */}
+            <div className="glass-card p-4">
+                <label className="block text-sm text-dark-300 mb-2">Select Course</label>
+                <select
+                    value={selectedCourse}
+                    onChange={(e) => setSelectedCourse(e.target.value)}
+                    className="w-full"
+                >
+                    <option value="">Choose a course</option>
+                    {courses.map(c => (
+                        <option key={c._id} value={c._id}>
+                            {c.courseName} ({c.courseCode}) - {c.department} - {c.season}
+                        </option>
+                    ))}
+                </select>
+            </div>
+
+            {/* Report */}
+            {!selectedCourse ? (
+                <div className="glass-card p-8 text-center text-dark-500">
+                    Select a course to view attendance report
+                </div>
+            ) : loading ? (
+                <Loader />
+            ) : !report || report.report.length === 0 ? (
+                <div className="glass-card p-8 text-center text-dark-500">
+                    No students enrolled in this course
+                </div>
+            ) : (
+                <div className="space-y-4">
+                    {/* Course Info */}
+                    <div className="glass-card p-4">
+                        <h4 className="font-semibold text-dark-100 text-lg">{report.course.courseName}</h4>
+                        <p className="text-sm text-dark-400 mt-1">
+                            {report.course.courseCode} · {report.course.department} · {report.course.season}
+                        </p>
+                        <p className="text-xs text-dark-500 mt-2">
+                            Total Sessions: {report.sessions.length} · Total Students: {report.report.length}
+                        </p>
+                    </div>
+
+                    {/* Student Cards */}
+                    {report.report.map((student) => (
+                        <div key={student.email} className="glass-card p-6">
+                            {/* Student Info */}
+                            <div className="flex items-start justify-between mb-4 pb-4 border-b border-dark-700">
+                                <div>
+                                    <h4 className="font-semibold text-dark-100 text-lg">{student.name}</h4>
+                                    <div className="flex flex-wrap gap-3 mt-2 text-sm text-dark-400">
+                                        <span>📝 {student.registrationNumber}</span>
+                                        <span>🏢 {student.department}</span>
+                                        <span>📅 Batch: {student.batch}</span>
+                                        <span>📧 {student.email}</span>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-3xl font-bold gradient-text">{student.percentage}%</p>
+                                    <p className="text-xs text-dark-400 mt-1">Attendance</p>
+                                </div>
+                            </div>
+
+                            {/* Summary Stats */}
+                            <div className="grid grid-cols-3 gap-3">
+                                <div className="bg-dark-800/50 rounded-lg p-3">
+                                    <p className="text-xs text-dark-500">Total Sessions</p>
+                                    <p className="text-xl font-bold text-dark-200">{student.totalSessions}</p>
+                                </div>
+                                <div className="bg-dark-800/50 rounded-lg p-3">
+                                    <p className="text-xs text-dark-500">Present</p>
+                                    <p className="text-xl font-bold text-accent-400">{student.presentCount}</p>
+                                </div>
+                                <div className="bg-dark-800/50 rounded-lg p-3">
+                                    <p className="text-xs text-dark-500">Absent</p>
+                                    <p className="text-xl font-bold text-red-400">{student.totalSessions - student.presentCount}</p>
+                                </div>
+                            </div>
+
+                            {/* Progress Bar */}
+                            <div className="mt-4">
+                                <div className="w-full h-3 bg-dark-800 rounded-full">
+                                    <div
+                                        className={`h-full rounded-full transition-all ${student.percentage >= 75 ? 'bg-accent-500' :
+                                            student.percentage >= 50 ? 'bg-amber-500' : 'bg-red-500'
+                                            }`}
+                                        style={{ width: `${student.percentage}%` }}
+                                    ></div>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
                 </div>
             )}
         </div>
@@ -594,6 +784,7 @@ export default function TeacherDashboard() {
                 <Routes>
                     <Route index element={<CoursesList />} />
                     <Route path="sessions" element={<SessionsList />} />
+                    <Route path="attendance-report" element={<CourseAttendanceReport />} />
                     <Route path="create-course" element={<CreateCourse />} />
                     <Route path="create-session" element={<CreateSession />} />
                 </Routes>

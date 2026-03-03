@@ -9,6 +9,7 @@ const tabs = [
     { label: 'Users', path: '/admin/users' },
     { label: 'Courses', path: '/admin/courses' },
     { label: 'Reports', path: '/admin/reports' },
+    { label: 'Attendance Report', path: '/admin/attendance-report' },
 ];
 
 /* ─── Overview ─────────────────────────────────── */
@@ -345,6 +346,214 @@ function ReportsPage() {
     );
 }
 
+/* ─── Comprehensive Attendance Report ─────────────────────────────────── */
+function ComprehensiveAttendanceReport() {
+    const [report, setReport] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [filters, setFilters] = useState({ department: '', batch: '' });
+    const [exporting, setExporting] = useState(false);
+
+    const fetchReport = async () => {
+        setLoading(true);
+        try {
+            const params = new URLSearchParams();
+            if (filters.department) params.append('department', filters.department);
+            if (filters.batch) params.append('batch', filters.batch);
+
+            const res = await api.get(`/admin/attendance-report?${params}`);
+            setReport(res.data.students);
+        } catch (error) {
+            console.error('Failed to fetch report:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchReport();
+    }, [filters]);
+
+    const handleExport = async (format) => {
+        setExporting(true);
+        try {
+            const params = new URLSearchParams();
+            if (filters.department) params.append('department', filters.department);
+            if (filters.batch) params.append('batch', filters.batch);
+            params.append('format', format);
+
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/admin/attendance-report/export?${params}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (!response.ok) throw new Error('Export failed');
+
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `comprehensive_attendance_report.${format === 'excel' ? 'xlsx' : 'csv'}`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        } catch (error) {
+            console.error('Export error:', error);
+            alert('Failed to export report');
+        } finally {
+            setExporting(false);
+        }
+    };
+
+    if (loading) return <Loader />;
+
+    return (
+        <div className="space-y-6 animate-fade-in">
+            <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-dark-100">Comprehensive Attendance Report</h3>
+                <div className="flex gap-2">
+                    <button
+                        onClick={() => handleExport('csv')}
+                        disabled={exporting}
+                        className="btn btn-outline text-xs"
+                    >
+                        {exporting ? 'Exporting...' : 'Export CSV'}
+                    </button>
+                    <button
+                        onClick={() => handleExport('excel')}
+                        disabled={exporting}
+                        className="btn btn-primary text-xs"
+                    >
+                        {exporting ? 'Exporting...' : 'Export Excel'}
+                    </button>
+                </div>
+            </div>
+
+            {/* Filters */}
+            <div className="glass-card p-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                        <label className="block text-sm text-dark-300 mb-1">Filter by Department</label>
+                        <input
+                            type="text"
+                            placeholder="e.g., CSE"
+                            value={filters.department}
+                            onChange={(e) => setFilters({ ...filters, department: e.target.value })}
+                            className="w-full"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm text-dark-300 mb-1">Filter by Batch</label>
+                        <input
+                            type="text"
+                            placeholder="e.g., 2021"
+                            value={filters.batch}
+                            onChange={(e) => setFilters({ ...filters, batch: e.target.value })}
+                            className="w-full"
+                        />
+                    </div>
+                    <div className="flex items-end">
+                        <button
+                            onClick={() => setFilters({ department: '', batch: '' })}
+                            className="btn btn-outline text-xs w-full"
+                        >
+                            Clear Filters
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {/* Report */}
+            {report.length === 0 ? (
+                <div className="glass-card p-8 text-center text-dark-500">
+                    No students found matching the filters
+                </div>
+            ) : (
+                <div className="space-y-4">
+                    {report.map((item) => (
+                        <div key={item.student.email} className="glass-card p-6">
+                            {/* Student Info */}
+                            <div className="flex items-start justify-between mb-4 pb-4 border-b border-dark-700">
+                                <div>
+                                    <h4 className="font-semibold text-dark-100 text-lg">{item.student.name}</h4>
+                                    <div className="flex flex-wrap gap-3 mt-2 text-sm text-dark-400">
+                                        <span>📝 {item.student.registrationNumber || 'N/A'}</span>
+                                        <span>🏢 {item.student.department || 'N/A'}</span>
+                                        <span>📅 Batch: {item.student.batch || 'N/A'}</span>
+                                        <span>📧 {item.student.email}</span>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-3xl font-bold gradient-text">{item.summary.overallPercentage}%</p>
+                                    <p className="text-xs text-dark-400 mt-1">Overall Attendance</p>
+                                </div>
+                            </div>
+
+                            {/* Summary Stats */}
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                                <div className="bg-dark-800/50 rounded-lg p-3">
+                                    <p className="text-xs text-dark-500">Courses</p>
+                                    <p className="text-xl font-bold text-dark-200">{item.summary.totalCourses}</p>
+                                </div>
+                                <div className="bg-dark-800/50 rounded-lg p-3">
+                                    <p className="text-xs text-dark-500">Total Sessions</p>
+                                    <p className="text-xl font-bold text-dark-200">{item.summary.totalSessions}</p>
+                                </div>
+                                <div className="bg-dark-800/50 rounded-lg p-3">
+                                    <p className="text-xs text-dark-500">Present</p>
+                                    <p className="text-xl font-bold text-accent-400">{item.summary.totalPresent}</p>
+                                </div>
+                                <div className="bg-dark-800/50 rounded-lg p-3">
+                                    <p className="text-xs text-dark-500">Absent</p>
+                                    <p className="text-xl font-bold text-red-400">{item.summary.totalAbsent}</p>
+                                </div>
+                            </div>
+
+                            {/* Course-wise Attendance */}
+                            {item.courses.length > 0 && (
+                                <div>
+                                    <p className="text-sm font-medium text-dark-300 mb-2">Course-wise Attendance:</p>
+                                    <div className="space-y-2">
+                                        {item.courses.map((course) => (
+                                            <div key={course.courseId} className="bg-dark-800/30 rounded-lg p-3">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex-1">
+                                                        <p className="text-sm font-medium text-dark-200">
+                                                            {course.courseName} ({course.courseCode})
+                                                        </p>
+                                                        <p className="text-xs text-dark-500 mt-1">
+                                                            {course.department} · {course.season} · Teacher: {course.teacher}
+                                                        </p>
+                                                    </div>
+                                                    <div className="text-right ml-4">
+                                                        <p className="text-lg font-bold text-dark-200">{course.percentage}%</p>
+                                                        <p className="text-xs text-dark-500">{course.presentCount}/{course.totalSessions}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="mt-2 w-full h-2 bg-dark-800 rounded-full">
+                                                    <div
+                                                        className={`h-full rounded-full transition-all ${course.percentage >= 75 ? 'bg-accent-500' :
+                                                                course.percentage >= 50 ? 'bg-amber-500' : 'bg-red-500'
+                                                            }`}
+                                                        style={{ width: `${course.percentage}%` }}
+                                                    ></div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
 /* ─── Helpers ──────────────────────────────────── */
 function Loader() {
     return (
@@ -365,6 +574,7 @@ export default function AdminDashboard() {
                     <Route path="users" element={<UsersPage />} />
                     <Route path="courses" element={<CoursesPage />} />
                     <Route path="reports" element={<ReportsPage />} />
+                    <Route path="attendance-report" element={<ComprehensiveAttendanceReport />} />
                 </Routes>
             </main>
         </div>

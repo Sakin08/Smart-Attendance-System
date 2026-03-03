@@ -127,19 +127,12 @@ function ScanQR() {
                 return;
             }
 
-            // Get current location
-            const position = await new Promise((resolve, reject) => {
-                navigator.geolocation.getCurrentPosition(resolve, reject, {
-                    enableHighAccuracy: true,
-                    timeout: 10000
-                });
-            });
-
+            // Location feature disabled - mark attendance without GPS
             const res = await api.post('/attendance/mark', {
                 sessionId: parsed.sessionId,
                 qrToken: parsed.qrToken,
-                lat: position.coords.latitude,
-                lng: position.coords.longitude
+                lat: 0,  // Default value when location is disabled
+                lng: 0   // Default value when location is disabled
             });
 
             setResult({ success: true, message: res.data.message });
