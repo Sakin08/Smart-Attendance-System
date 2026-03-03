@@ -126,12 +126,44 @@ router.post(
           .json({ message: "You are not enrolled in this course" });
       }
 
-      // 3. Validate time window
+      // 3. Validate time window - strict (no buffer)
       const now = new Date();
-      if (now < session.startTime || now > session.endTime) {
-        return res
-          .status(400)
-          .json({ message: "Attendance session is not active" });
+      const sessionStart = new Date(session.startTime);
+      const sessionEnd = new Date(session.endTime);
+
+      console.log("Time validation:", {
+        now: now.toISOString(),
+        nowLocal: now.toString(),
+        sessionStart: sessionStart.toISOString(),
+        sessionStartLocal: sessionStart.toString(),
+        sessionEnd: sessionEnd.toISOString(),
+        sessionEndLocal: sessionEnd.toString(),
+        nowTimestamp: now.getTime(),
+        startTimestamp: sessionStart.getTime(),
+        endTimestamp: sessionEnd.getTime(),
+        isBeforeStart: now < sessionStart,
+        isAfterEnd: now > sessionEnd,
+      });
+
+      // Strict time validation - must be within exact session time
+      if (now < sessionStart || now > sessionEnd) {
+        const minutesUntilStart = Math.round(
+          (sessionStart.getTime() - now.getTime()) / 1000 / 60,
+        );
+        const minutesSinceEnd = Math.round(
+          (now.getTime() - sessionEnd.getTime()) / 1000 / 60,
+        );
+
+        return res.status(400).json({
+          message: "Attendance session is not active",
+          debug: {
+            currentTime: now.toISOString(),
+            sessionStart: sessionStart.toISOString(),
+            sessionEnd: sessionEnd.toISOString(),
+            minutesUntilStart: minutesUntilStart > 0 ? minutesUntilStart : null,
+            minutesSinceEnd: minutesSinceEnd > 0 ? minutesSinceEnd : null,
+          },
+        });
       }
 
       // 4. Location validation - DISABLED
@@ -144,11 +176,9 @@ router.post(
 
       // 5. Check duplicate
       if (session.attendances.some((a) => a.email === studentEmail)) {
-        return res
-          .status(400)
-          .json({
-            message: "You have already marked attendance for this session",
-          });
+        return res.status(400).json({
+          message: "You have already marked attendance for this session",
+        });
       }
 
       // All validations passed — mark attendance
