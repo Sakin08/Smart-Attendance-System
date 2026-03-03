@@ -179,7 +179,10 @@ function SessionsList() {
     const handleExport = async (sessionId, format) => {
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/attendance-sessions/${sessionId}/export?format=${format}`, {
+            const apiUrl = import.meta.env.VITE_API_URL || '/api';
+            const url = `${apiUrl}/attendance-sessions/${sessionId}/export?format=${format}`;
+
+            const response = await fetch(url, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`
@@ -187,7 +190,8 @@ function SessionsList() {
             });
 
             if (!response.ok) {
-                throw new Error('Export failed');
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || `Export failed with status ${response.status}`);
             }
 
             // Get filename from Content-Disposition header or use default
@@ -198,17 +202,17 @@ function SessionsList() {
 
             // Create blob and download
             const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
+            const downloadUrl = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = url;
+            a.href = downloadUrl;
             a.download = filename;
             document.body.appendChild(a);
             a.click();
-            window.URL.revokeObjectURL(url);
+            window.URL.revokeObjectURL(downloadUrl);
             document.body.removeChild(a);
         } catch (error) {
             console.error('Export error:', error);
-            alert('Failed to export attendance. Please try again.');
+            alert(`Failed to export: ${error.message}`);
         }
     };
 
@@ -619,27 +623,33 @@ function CourseAttendanceReport() {
         setExporting(true);
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/courses/${selectedCourse}/attendance-report/export?format=${format}`, {
+            const apiUrl = import.meta.env.VITE_API_URL || '/api';
+            const url = `${apiUrl}/courses/${selectedCourse}/attendance-report/export?format=${format}`;
+
+            const response = await fetch(url, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
             });
 
-            if (!response.ok) throw new Error('Export failed');
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || `Export failed with status ${response.status}`);
+            }
 
             const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
+            const downloadUrl = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = url;
+            a.href = downloadUrl;
             a.download = `course_attendance_report.${format === 'excel' ? 'xlsx' : 'csv'}`;
             document.body.appendChild(a);
             a.click();
-            window.URL.revokeObjectURL(url);
+            window.URL.revokeObjectURL(downloadUrl);
             document.body.removeChild(a);
         } catch (error) {
             console.error('Export error:', error);
-            alert('Failed to export report');
+            alert(`Failed to export report: ${error.message}`);
         } finally {
             setExporting(false);
         }
