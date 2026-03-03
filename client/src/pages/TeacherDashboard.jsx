@@ -600,9 +600,6 @@ function CreateSession() {
             {!createdSession ? (
                 <div className="glass-card p-6">
                     <h3 className="text-lg font-semibold text-dark-100 mb-4">Create Attendance Session</h3>
-                    <p className="text-sm text-dark-400 mb-4">
-                        📍 Location verification is disabled. Students can mark attendance from anywhere using the QR code.
-                    </p>
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div>
                             <label className="block text-sm font-medium text-dark-300 mb-1">Course</label>
