@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Routes, Route, useNavigate } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../api';
 import Navbar from '../components/Navbar';
 import QRScanner from '../components/QRScanner';
 import Toast from '../components/Toast';
+import { toBDTime, toBDDate, toBDTimeOnly } from '../utils/timeUtils';
 
 const tabs = [
     { label: 'Dashboard', path: '/student' },
@@ -87,7 +88,7 @@ function DashboardHome() {
                                             {session.course?.courseName} ({session.course?.courseCode})
                                         </p>
                                         <p className="text-xs text-dark-400 mt-1">
-                                            {new Date(session.startTime).toLocaleTimeString()} - {new Date(session.endTime).toLocaleTimeString()}
+                                            {toBDTimeOnly(session.startTime)} - {toBDTimeOnly(session.endTime)}
                                         </p>
                                     </div>
                                     {session.alreadyMarked ? (
@@ -255,15 +256,15 @@ function AttendanceHistory() {
                                         {item.sessions.map((s, idx) => (
                                             <tr key={s.sessionId}>
                                                 <td>{idx + 1}</td>
-                                                <td>{new Date(s.startTime).toLocaleDateString()}</td>
-                                                <td>{new Date(s.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                                                <td>{toBDDate(s.startTime)}</td>
+                                                <td>{toBDTimeOnly(s.startTime)}</td>
                                                 <td>
                                                     <span className={`badge ${s.status === 'Present' ? 'badge-present' : 'badge-absent'}`}>
                                                         {s.status}
                                                     </span>
                                                 </td>
                                                 <td className="text-dark-400 text-xs">
-                                                    {s.markedAt ? new Date(s.markedAt).toLocaleString() : '-'}
+                                                    {s.markedAt ? toBDTime(s.markedAt) : '-'}
                                                 </td>
                                             </tr>
                                         ))}

@@ -1,7 +1,9 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
+const bcrypt = require("bcryptjs");
 const connectDB = require("./config/db");
+const User = require("./models/User");
 
 const authRoutes = require("./routes/authRoutes");
 const studentRoutes = require("./routes/studentRoutes");
@@ -9,6 +11,36 @@ const teacherRoutes = require("./routes/teacherRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 
 const app = express();
+
+// Default admin credentials
+const ADMIN_EMAIL = "admin@smartattendance.edu";
+const ADMIN_PASSWORD = "admin123";
+const ADMIN_NAME = "System Administrator";
+
+// Create default admin if not exists
+async function ensureAdminExists() {
+  try {
+    const existingAdmin = await User.findOne({
+      email: ADMIN_EMAIL,
+      role: "admin",
+    });
+
+    if (!existingAdmin) {
+      // Don't hash password here - let the User model do it
+      await User.create({
+        name: ADMIN_NAME,
+        email: ADMIN_EMAIL,
+        password: ADMIN_PASSWORD, // Plain password - model will hash it
+        role: "admin",
+      });
+      console.log("✅ Default admin account created");
+      console.log(`   Email: ${ADMIN_EMAIL}`);
+      console.log(`   Password: ${ADMIN_PASSWORD}`);
+    }
+  } catch (error) {
+    console.error("Error creating admin:", error);
+  }
+}
 
 // Middleware
 const allowedOrigins = [
@@ -91,7 +123,8 @@ app.use((err, req, res, next) => {
 // Start server
 const PORT = process.env.PORT || 5001;
 
-connectDB().then(() => {
+connectDB().then(async () => {
+  await ensureAdminExists();
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
   });

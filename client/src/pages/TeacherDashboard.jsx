@@ -5,6 +5,7 @@ import api from '../api';
 import Navbar from '../components/Navbar';
 import Toast from '../components/Toast';
 import QRCode from 'qrcode';
+import { toBDTime, toBDDate, toBDTimeOnly, getBDDateTimeLocal, bdDateTimeLocalToISO } from '../utils/timeUtils';
 
 const tabs = [
     { label: 'Courses', path: '/teacher' },
@@ -300,7 +301,7 @@ function SessionsList() {
                                 <div className="flex items-center justify-between">
                                     <div>
                                         <p className="font-medium text-dark-200">
-                                            {new Date(session.startTime).toLocaleDateString()} · {new Date(session.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {new Date(session.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            {toBDDate(session.startTime)} · {toBDTimeOnly(session.startTime)} - {toBDTimeOnly(session.endTime)}
                                             {session.batch && (
                                                 <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-primary-500/20 text-primary-300">
                                                     Batch {session.batch}
@@ -327,7 +328,7 @@ function SessionsList() {
                         <div>
                             <h4 className="font-semibold text-dark-100">Session Details</h4>
                             <p className="text-sm text-dark-400">
-                                {new Date(selectedSession.startTime).toLocaleString()} - {new Date(selectedSession.endTime).toLocaleTimeString()}
+                                {toBDTime(selectedSession.startTime)} - {toBDTimeOnly(selectedSession.endTime)}
                                 {selectedSession.batch && (
                                     <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-primary-500/20 text-primary-300">
                                         Batch {selectedSession.batch}
@@ -390,7 +391,7 @@ function SessionsList() {
                                                 {row.status}
                                             </span>
                                         </td>
-                                        <td className="text-xs text-dark-400">{row.markedAt ? new Date(row.markedAt).toLocaleString() : '-'}</td>
+                                        <td className="text-xs text-dark-400">{row.markedAt ? toBDTime(row.markedAt) : '-'}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -549,15 +550,11 @@ function CreateSession() {
         e.preventDefault();
         setSaving(true);
         try {
-            // Convert datetime-local values to proper ISO strings
-            const startDate = new Date(form.startTime);
-            const endDate = new Date(form.endTime);
-
             const sessionData = {
                 courseId: form.courseId,
-                batch: '',  // No batch filter
-                startTime: startDate.toISOString(),
-                endTime: endDate.toISOString(),
+                batch: '',
+                startTime: bdDateTimeLocalToISO(form.startTime),
+                endTime: bdDateTimeLocalToISO(form.endTime),
                 lat: form.lat,
                 lng: form.lng,
                 radiusMeters: form.radiusMeters
@@ -582,15 +579,15 @@ function CreateSession() {
         }
     };
 
-    // Default times: now and +1 hour
+    // Default times: now and +1 hour in BD timezone
     useEffect(() => {
         const now = new Date();
-        const later = new Date(now.getTime() + 60 * 60 * 1000);
-        const toLocal = (d) => {
-            const offset = d.getTimezoneOffset() * 60000;
-            return new Date(d.getTime() - offset).toISOString().slice(0, 16);
-        };
-        setForm(f => ({ ...f, startTime: toLocal(now), endTime: toLocal(later) }));
+        const later = new Date(now.getTime() + 8 * 60 * 1000); // 8 minutes
+        setForm(f => ({
+            ...f,
+            startTime: getBDDateTimeLocal(now),
+            endTime: getBDDateTimeLocal(later)
+        }));
     }, []);
 
     return (
@@ -645,7 +642,7 @@ function CreateSession() {
                     </div>
 
                     <div className="text-sm text-dark-400 space-y-1">
-                        <p>Session: {new Date(createdSession.startTime).toLocaleString()} - {new Date(createdSession.endTime).toLocaleTimeString()}</p>
+                        <p>Session: {toBDTime(createdSession.startTime)} - {toBDTimeOnly(createdSession.endTime)}</p>
                         <p className="font-mono text-xs">Token: {createdSession.qrToken}</p>
                     </div>
 

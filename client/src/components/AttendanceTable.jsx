@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toBDTime } from '../utils/timeUtils';
 
 export default function AttendanceTable({ sheet = [], title = 'Attendance Sheet', showLocation = false }) {
     const [search, setSearch] = useState('');
@@ -40,8 +41,8 @@ export default function AttendanceTable({ sheet = [], title = 'Attendance Sheet'
                             key={f}
                             onClick={() => setFilter(f)}
                             className={`px-3 py-2 text-xs font-medium transition-all capitalize ${filter === f
-                                    ? 'bg-primary-600 text-white'
-                                    : 'bg-dark-800 text-dark-400 hover:text-dark-200'
+                                ? 'bg-primary-600 text-white'
+                                : 'bg-dark-800 text-dark-400 hover:text-dark-200'
                                 }`}
                         >
                             {f}
@@ -80,7 +81,7 @@ export default function AttendanceTable({ sheet = [], title = 'Attendance Sheet'
                                         </span>
                                     </td>
                                     <td className="text-dark-400 text-sm">
-                                        {entry.markedAt ? new Date(entry.markedAt).toLocaleString() : '—'}
+                                        {entry.markedAt ? toBDTime(entry.markedAt) : '—'}
                                     </td>
                                     {showLocation && (
                                         <td className="text-dark-400 text-xs font-mono">

@@ -2,6 +2,15 @@
 
 A comprehensive QR code and GPS-based attendance tracking system for universities, built with React, Node.js, Express, and MongoDB.
 
+## 🔐 Default Admin Access
+
+**Admin Login Credentials** (Auto-created on server start):
+
+- **Email**: `admin@smartattendance.edu`
+- **Password**: `admin123`
+
+⚠️ **Important**: Change the password after first login for security.
+
 ## Features
 
 - 🎓 **Student Management**: Register students with SUST email validation and department parsing
@@ -110,9 +119,11 @@ smart-attendance/
    ```
 
    Default accounts:
-   - Admin: `admin@sust.edu` / `admin123`
+   - **Admin**: `admin@smartattendance.edu` / `admin123` (Auto-created on server start)
    - Teacher: `dr.rahman@sust.edu` / `teacher123`
    - Student: `2021331001@student.sust.edu` / `student123`
+
+   **Note**: The admin account is automatically created when the server starts. You can login immediately with the credentials above.
 
 ### Environment Variables
 
