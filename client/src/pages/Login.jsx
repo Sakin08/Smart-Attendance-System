@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { GoogleLogin } from '@react-oauth/google';
 import { useAuth } from '../context/AuthContext';
 
 export default function Login() {
@@ -7,7 +8,7 @@ export default function Login() {
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
-    const { login } = useAuth();
+    const { login, googleSignIn } = useAuth();
     const navigate = useNavigate();
 
     const handleSubmit = async (e) => {
@@ -22,6 +23,23 @@ export default function Login() {
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleGoogleSuccess = async (credentialResponse) => {
+        setError('');
+        setLoading(true);
+        try {
+            const user = await googleSignIn(credentialResponse.credential);
+            navigate(`/${user.role}`);
+        } catch (err) {
+            setError(err.response?.data?.message || 'Google Sign-In failed');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleGoogleError = () => {
+        setError('Google Sign-In failed. Please try again.');
     };
 
     return (
@@ -83,6 +101,32 @@ export default function Login() {
                         ) : 'Sign In'}
                     </button>
                 </form>
+
+                {/* Divider */}
+                <div className="relative my-6">
+                    <div className="absolute inset-0 flex items-center">
+                        <div className="w-full border-t border-dark-700"></div>
+                    </div>
+                    <div className="relative flex justify-center text-sm">
+                        <span className="px-2 bg-dark-800 text-dark-400">Or continue with</span>
+                    </div>
+                </div>
+
+                {/* Google Sign-In */}
+                <div className="flex justify-center">
+                    <GoogleLogin
+                        onSuccess={handleGoogleSuccess}
+                        onError={handleGoogleError}
+                        text="signin_with"
+                        shape="rectangular"
+                        theme="filled_black"
+                        size="large"
+                        width="100%"
+                    />
+                </div>
+                <p className="text-xs text-center text-dark-500 mt-2">
+                    Google Sign-In is only available for @student.sust.edu emails
+                </p>
 
                 <p className="text-center mt-6 text-dark-400 text-sm">
                     Don't have an account?{' '}
