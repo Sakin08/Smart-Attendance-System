@@ -104,6 +104,18 @@ router.post(
           .json({ message: "sessionId and qrToken are required" });
       }
 
+      if (
+        lat === undefined ||
+        lat === null ||
+        lng === undefined ||
+        lng === null
+      ) {
+        return res.status(400).json({
+          message:
+            "Your location is required to mark attendance. Please enable location services.",
+        });
+      }
+
       // Find session
       const session =
         await AttendanceSession.findById(sessionId).populate("courseId");
@@ -133,11 +145,9 @@ router.post(
           role: "student",
         });
         if (!student || student.batch !== session.batch) {
-          return res
-            .status(403)
-            .json({
-              message: `This session is only for batch ${session.batch}`,
-            });
+          return res.status(403).json({
+            message: `This session is only for batch ${session.batch}`,
+          });
         }
       }
 
@@ -181,13 +191,20 @@ router.post(
         });
       }
 
-      // 4. Location validation - DISABLED
-      // const distance = haversineDistance(lat, lng, session.location.lat, session.location.lng);
-      // if (distance > session.radiusMeters) {
-      //   return res.status(400).json({
-      //     message: `You are too far from the session location (${Math.round(distance)}m away, max ${session.radiusMeters}m)`
-      //   });
-      // }
+      // 4. Location validation - ENABLED
+      const distance = haversineDistance(
+        lat,
+        lng,
+        session.location.lat,
+        session.location.lng,
+      );
+      if (distance > session.radiusMeters) {
+        return res.status(400).json({
+          message: `You are too far from the class. You are ${Math.round(distance)}m away but must be within ${session.radiusMeters}m.`,
+          distance: Math.round(distance),
+          radiusMeters: session.radiusMeters,
+        });
+      }
 
       // 5. Check duplicate
       if (session.attendances.some((a) => a.email === studentEmail)) {
@@ -200,8 +217,8 @@ router.post(
       session.attendances.push({
         email: studentEmail,
         timestamp: now,
-        lat: lat || 0, // Use 0 if not provided
-        lng: lng || 0, // Use 0 if not provided
+        lat,
+        lng,
       });
       await session.save();
 

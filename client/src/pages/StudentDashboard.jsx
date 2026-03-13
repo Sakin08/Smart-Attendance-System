@@ -5,6 +5,7 @@ import api from '../api';
 import Navbar from '../components/Navbar';
 import QRScanner from '../components/QRScanner';
 import Toast from '../components/Toast';
+import LocationStatus from '../components/LocationStatus';
 import { toBDTime, toBDDate, toBDTimeOnly } from '../utils/timeUtils';
 
 const tabs = [
@@ -81,7 +82,7 @@ function DashboardHome() {
                 ) : (
                     <div className="space-y-3">
                         {activeSessions.map(session => (
-                            <div key={session._id} className="bg-dark-800/50 rounded-xl p-4 border border-primary-500/10">
+                            <div key={session._id} className="bg-dark-800/50 rounded-xl p-4 border border-primary-500/10 space-y-3">
                                 <div className="flex items-center justify-between">
                                     <div>
                                         <p className="font-semibold text-dark-100">
@@ -91,12 +92,20 @@ function DashboardHome() {
                                             {toBDTimeOnly(session.startTime)} - {toBDTimeOnly(session.endTime)}
                                         </p>
                                     </div>
-                                    {session.alreadyMarked ? (
-                                        <span className="badge badge-present">✓ Marked</span>
-                                    ) : (
-                                        <span className="badge badge-active">● Active</span>
-                                    )}
+                                    <div className="flex items-center gap-2">
+                                        <LocationStatus session={session} compact={true} />
+                                        {session.alreadyMarked ? (
+                                            <span className="badge badge-present">✓ Marked</span>
+                                        ) : (
+                                            <span className="badge badge-active">● Active</span>
+                                        )}
+                                    </div>
                                 </div>
+                                {session.location && (
+                                    <div className="text-xs text-dark-500 bg-dark-900/30 rounded-lg p-2">
+                                        📍 Location verification required - be within {session.radiusMeters}m of classroom
+                                    </div>
+                                )}
                             </div>
                         ))}
                     </div>
@@ -112,7 +121,7 @@ function ScanQR() {
     const [submitting, setSubmitting] = useState(false);
     const [result, setResult] = useState(null);
 
-    const handleScan = async (data) => {
+    const handleScan = async (data, studentLocation) => {
         if (submitting) return;
         setSubmitting(true);
         setResult(null);
@@ -128,19 +137,27 @@ function ScanQR() {
                 return;
             }
 
-            // Location feature disabled - mark attendance without GPS
+            // Submit attendance with location
             const res = await api.post('/attendance/mark', {
                 sessionId: parsed.sessionId,
                 qrToken: parsed.qrToken,
-                lat: 0,  // Default value when location is disabled
-                lng: 0   // Default value when location is disabled
+                lat: studentLocation.lat,
+                lng: studentLocation.lng
             });
 
             setResult({ success: true, message: res.data.message });
             setToast({ message: 'Attendance marked successfully! ✓', type: 'success' });
         } catch (err) {
             const msg = err.response?.data?.message || err.message || 'Failed to mark attendance';
-            setResult({ success: false, message: msg });
+            const distance = err.response?.data?.distance;
+            const radiusMeters = err.response?.data?.radiusMeters;
+
+            setResult({
+                success: false,
+                message: msg,
+                distance,
+                radiusMeters
+            });
             setToast({ message: msg, type: 'error' });
         } finally {
             setSubmitting(false);
@@ -154,7 +171,7 @@ function ScanQR() {
             <div className="glass-card p-6">
                 <h3 className="text-lg font-semibold text-dark-100 mb-4">Scan QR Code</h3>
                 <p className="text-dark-400 text-sm mb-4">
-                    Point your camera at the QR code shown by your teacher to mark attendance.
+                    Point your camera at the QR code shown by your teacher. Your location will be verified to ensure you're in the classroom.
                 </p>
                 <QRScanner onScan={handleScan} />
             </div>
@@ -184,6 +201,11 @@ function ScanQR() {
                         <p className={`font-semibold ${result.success ? 'text-accent-400' : 'text-red-400'}`}>
                             {result.message}
                         </p>
+                        {result.distance && result.radiusMeters && (
+                            <p className="text-sm text-dark-400 mt-2">
+                                You are {result.distance}m away (max {result.radiusMeters}m allowed)
+                            </p>
+                        )}
                     </div>
                 </div>
             )}

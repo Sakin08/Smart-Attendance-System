@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../api';
 import Navbar from '../components/Navbar';
 import Toast from '../components/Toast';
+import LocationCapture from '../components/LocationCapture';
 import QRCode from 'qrcode';
 import { toBDTime, toBDDate, toBDTimeOnly, getBDDateTimeLocal, bdDateTimeLocalToISO } from '../utils/timeUtils';
 
@@ -533,8 +534,8 @@ function CreateSession() {
         courseId: '',
         startTime: '',
         endTime: '',
-        lat: 0,  // Default location (disabled)
-        lng: 0,  // Default location (disabled)
+        lat: null,
+        lng: null,
         radiusMeters: 100
     });
     const [saving, setSaving] = useState(false);
@@ -546,8 +547,22 @@ function CreateSession() {
         api.get('/courses').then(res => setCourses(res.data.courses)).catch(() => { });
     }, []);
 
+    const handleLocationChange = useCallback((location) => {
+        setForm(f => ({
+            ...f,
+            lat: location?.lat || null,
+            lng: location?.lng || null
+        }));
+    }, []);
+
     const handleSubmit = async (e) => {
         e.preventDefault();
+
+        if (!form.lat || !form.lng) {
+            setToast({ message: 'Location is required to create an attendance session', type: 'error' });
+            return;
+        }
+
         setSaving(true);
         try {
             const sessionData = {
@@ -625,8 +640,43 @@ function CreateSession() {
                             </div>
                         </div>
 
-                        <button type="submit" disabled={saving} className="btn btn-primary">
-                            {saving ? 'Creating...' : 'Create Session & Generate QR'}
+                        {/* Location Capture */}
+                        <div>
+                            <label className="block text-sm font-medium text-dark-300 mb-2">Classroom Location</label>
+                            <LocationCapture onLocationChange={handleLocationChange} required={true} />
+                        </div>
+
+                        {/* Radius Selector */}
+                        <div>
+                            <label className="block text-sm font-medium text-dark-300 mb-2">Attendance Zone Radius</label>
+                            <div className="grid grid-cols-4 gap-2 mb-2">
+                                {[50, 100, 200, 500].map((radius) => (
+                                    <button
+                                        key={radius}
+                                        type="button"
+                                        onClick={() => setForm({ ...form, radiusMeters: radius })}
+                                        className={`p-2 text-sm rounded-lg border transition-colors ${form.radiusMeters === radius
+                                            ? 'bg-primary-500/20 border-primary-500 text-primary-400'
+                                            : 'bg-dark-800/50 border-dark-600 text-dark-400 hover:border-dark-500'
+                                            }`}
+                                    >
+                                        {radius}m
+                                    </button>
+                                ))}
+                            </div>
+                            <p className="text-xs text-dark-500">
+                                Students must be within {form.radiusMeters}m of your current location to mark attendance
+                            </p>
+                        </div>
+
+                        <button
+                            type="submit"
+                            disabled={saving || !form.lat || !form.lng}
+                            className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {saving ? 'Creating...' :
+                                !form.lat || !form.lng ? '⚠️ Location Required' :
+                                    'Create Session & Generate QR'}
                         </button>
                     </form>
                 </div>
@@ -643,6 +693,7 @@ function CreateSession() {
 
                     <div className="text-sm text-dark-400 space-y-1">
                         <p>Session: {toBDTime(createdSession.startTime)} - {toBDTimeOnly(createdSession.endTime)}</p>
+                        <p>📍 Attendance zone: {createdSession.radiusMeters}m radius</p>
                         <p className="font-mono text-xs">Token: {createdSession.qrToken}</p>
                     </div>
 
